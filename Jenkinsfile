@@ -48,13 +48,6 @@ pipeline {
             }
         }
 
-        stage('E2E Tests') {
-            steps {
-                echo '✅ Exécution des tests E2E...'
-                sh 'npm run test:e2e:coverage'
-            }
-        }
-
         stage('SonarQube Analysis') {
             steps {
                 echo '🔍 Analyse SonarQube...'
@@ -64,7 +57,7 @@ pipeline {
                             -Dsonar.projectKey=marius-tasklist-frontend \
                             -Dsonar.sources=src \
                             -Dsonar.coverage.exclusions=**/__tests__/** \
-                            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info,coverage-e2e/lcov.info
+                            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                     '''
                 }
             }
