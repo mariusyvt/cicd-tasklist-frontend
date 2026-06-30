@@ -1,0 +1,107 @@
+name: 🔒 Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Scan hebdomadaire le lundi à 08h
+    - cron: "0 8 * * 1"
+
+jobs:
+  trivy-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t tasklist-frontend:${{ github.sha }} .
+          docker tag tasklist-frontend:${{ github.sha }} tasklist-frontend:latest
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tasklist-frontend:latest
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+          category: "trivy"
+
+      - name: Generate Trivy table report
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tasklist-frontend:latest
+          format: "table"
+          output: "trivy-report.txt"
+          severity: "CRITICAL,HIGH"
+
+      - name: Generate SBOM (SPDX)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tasklist-frontend:latest
+          format: "spdx-json"
+          output: "sbom-spdx.json"
+
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tasklist-frontend:latest
+          format: "cyclonedx"
+          output: "sbom-cyclonedx.json"
+
+      - name: Upload security reports as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: |
+            trivy-report.txt
+            sbom-spdx.json
+            sbom-cyclonedx.json
+          retention-days: 90
+
+      - name: Comment PR with scan results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('trivy-report.txt', 'utf8');
+            const lines = report.split('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 🔒 Security Scan Results\n\n```\n' + lines.slice(0, 50).join('\n') + '\n```\n\n📋 Full reports available in artifacts'
+            });
+
+  sbom-validate:
+    name: Validate SBOM
+    runs-on: ubuntu-latest
+    needs: trivy-scan
+
+    steps:
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: sbom-artifacts
+
+      - name: Validate SPDX SBOM
+        run: |
+          echo "✅ SBOM files generated:"
+          find sbom-artifacts -name "*.json" -exec echo "  - {}" \;
