@@ -4,7 +4,7 @@ pipeline {
         REGISTRY = 'docker.io'
         IMAGE_NAME = "${REGISTRY}/muvay/marius-tasklist-frontend"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS = 'dockerhub-credentials'
+        DOCKER_CREDENTIALS = 'marius-dockerhub-credentials'
         SONARQUBE_TOKEN = 'sonarqube-token'
     }
 
@@ -50,9 +50,10 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo '🔍 Analyse SonarQube...'
-                withSonarQubeEnv('sonarqube') {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
                         npx sonarqube-scanner \
+                            -Dsonar.login=${SONAR_TOKEN} \
                             -Dsonar.projectKey=marius-tasklist-frontend \
                             -Dsonar.sources=src \
                             -Dsonar.coverage.exclusions=**/__tests__/** \
