@@ -1,6 +1,5 @@
 pipeline {
     agent any
-
     environment {
         REGISTRY = 'docker.io'
         IMAGE_NAME = "${REGISTRY}/muvay/marius-tasklist-frontend"
